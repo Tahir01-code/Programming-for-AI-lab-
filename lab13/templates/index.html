@@ -1,0 +1,709 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>MediScan — AI Symptom Checker</title>
+
+  <!-- Fonts -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=DM+Serif+Display:ital@0;1&family=DM+Sans:wght@300;400;500;600&display=swap" rel="stylesheet">
+
+  <style>
+    /* ── Reset & Base ────────────────────────────────────── */
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --bg:         #0b0f1a;
+      --surface:    #111827;
+      --surface2:   #1a2236;
+      --border:     #1f2d45;
+      --accent:     #38bdf8;
+      --accent2:    #818cf8;
+      --text:       #e2e8f0;
+      --muted:      #64748b;
+      --mild:       #22c55e;
+      --moderate:   #f59e0b;
+      --high:       #ef4444;
+      --critical:   #dc2626;
+      --radius:     14px;
+      --shadow:     0 8px 32px rgba(0,0,0,0.5);
+    }
+
+    html { scroll-behavior: smooth; }
+
+    body {
+      font-family: 'DM Sans', sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      min-height: 100vh;
+      overflow-x: hidden;
+    }
+
+    /* ── Background grid ─────────────────────────────────── */
+    body::before {
+      content: '';
+      position: fixed;
+      inset: 0;
+      background-image:
+        linear-gradient(rgba(56,189,248,0.03) 1px, transparent 1px),
+        linear-gradient(90deg, rgba(56,189,248,0.03) 1px, transparent 1px);
+      background-size: 48px 48px;
+      pointer-events: none;
+      z-index: 0;
+    }
+
+    /* ── Glow orbs ───────────────────────────────────────── */
+    .orb {
+      position: fixed;
+      border-radius: 50%;
+      filter: blur(120px);
+      pointer-events: none;
+      z-index: 0;
+      animation: drift 12s ease-in-out infinite alternate;
+    }
+    .orb-1 { width:500px; height:500px; background:rgba(56,189,248,0.07); top:-150px; left:-100px; }
+    .orb-2 { width:400px; height:400px; background:rgba(129,140,248,0.06); bottom:-100px; right:-80px; animation-delay:-6s; }
+
+    @keyframes drift {
+      from { transform: translate(0,0) scale(1); }
+      to   { transform: translate(30px, 20px) scale(1.05); }
+    }
+
+    /* ── Layout ──────────────────────────────────────────── */
+    .wrapper {
+      position: relative;
+      z-index: 1;
+      max-width: 860px;
+      margin: 0 auto;
+      padding: 0 24px 80px;
+    }
+
+    /* ── Header ──────────────────────────────────────────── */
+    header {
+      text-align: center;
+      padding: 64px 0 48px;
+    }
+
+    .logo-badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      background: rgba(56,189,248,0.08);
+      border: 1px solid rgba(56,189,248,0.2);
+      border-radius: 100px;
+      padding: 6px 16px;
+      font-size: 12px;
+      font-weight: 600;
+      letter-spacing: 0.12em;
+      text-transform: uppercase;
+      color: var(--accent);
+      margin-bottom: 24px;
+    }
+
+    .logo-badge .dot {
+      width: 6px; height: 6px;
+      background: var(--accent);
+      border-radius: 50%;
+      animation: pulse 2s ease-in-out infinite;
+    }
+
+    @keyframes pulse {
+      0%, 100% { opacity: 1; transform: scale(1); }
+      50%       { opacity: 0.4; transform: scale(0.8); }
+    }
+
+    h1 {
+      font-family: 'DM Serif Display', serif;
+      font-size: clamp(2.4rem, 5vw, 3.8rem);
+      line-height: 1.1;
+      color: #fff;
+      margin-bottom: 16px;
+    }
+
+    h1 span { color: var(--accent); font-style: italic; }
+
+    .subtitle {
+      color: var(--muted);
+      font-size: 1rem;
+      max-width: 480px;
+      margin: 0 auto;
+      line-height: 1.6;
+    }
+
+    /* ── Input card ──────────────────────────────────────── */
+    .input-card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 32px;
+      margin-bottom: 28px;
+      box-shadow: var(--shadow);
+      animation: slideUp 0.6s ease both;
+    }
+
+    @keyframes slideUp {
+      from { opacity: 0; transform: translateY(24px); }
+      to   { opacity: 1; transform: translateY(0); }
+    }
+
+    .input-label {
+      font-size: 0.75rem;
+      font-weight: 600;
+      letter-spacing: 0.1em;
+      text-transform: uppercase;
+      color: var(--muted);
+      margin-bottom: 10px;
+    }
+
+    .symptom-input-wrap {
+      position: relative;
+    }
+
+    textarea {
+      width: 100%;
+      background: var(--surface2);
+      border: 1.5px solid var(--border);
+      border-radius: 10px;
+      color: var(--text);
+      font-family: 'DM Sans', sans-serif;
+      font-size: 1rem;
+      line-height: 1.6;
+      padding: 16px 20px;
+      resize: none;
+      height: 110px;
+      transition: border-color 0.2s;
+      outline: none;
+    }
+
+    textarea:focus {
+      border-color: var(--accent);
+      box-shadow: 0 0 0 3px rgba(56,189,248,0.1);
+    }
+
+    textarea::placeholder { color: var(--muted); }
+
+    /* ── Tag chips ───────────────────────────────────────── */
+    .tag-row {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+      margin-top: 14px;
+    }
+
+    .tag-label {
+      font-size: 0.7rem;
+      font-weight: 600;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      color: var(--muted);
+      width: 100%;
+      margin-bottom: 2px;
+    }
+
+    .tag {
+      background: var(--surface2);
+      border: 1px solid var(--border);
+      border-radius: 100px;
+      padding: 5px 13px;
+      font-size: 0.78rem;
+      color: var(--muted);
+      cursor: pointer;
+      transition: all 0.18s;
+    }
+
+    .tag:hover {
+      border-color: var(--accent);
+      color: var(--accent);
+      background: rgba(56,189,248,0.07);
+    }
+
+    /* ── Analyze button ──────────────────────────────────── */
+    .btn-analyze {
+      margin-top: 20px;
+      width: 100%;
+      background: linear-gradient(135deg, var(--accent), var(--accent2));
+      border: none;
+      border-radius: 10px;
+      color: #0b0f1a;
+      font-family: 'DM Sans', sans-serif;
+      font-size: 1rem;
+      font-weight: 700;
+      padding: 16px 24px;
+      cursor: pointer;
+      letter-spacing: 0.02em;
+      transition: all 0.2s;
+      position: relative;
+      overflow: hidden;
+    }
+
+    .btn-analyze:hover:not(:disabled) {
+      transform: translateY(-2px);
+      box-shadow: 0 8px 24px rgba(56,189,248,0.35);
+    }
+
+    .btn-analyze:active:not(:disabled) { transform: translateY(0); }
+
+    .btn-analyze:disabled {
+      opacity: 0.6;
+      cursor: not-allowed;
+    }
+
+    .btn-analyze .spinner {
+      display: none;
+      width: 18px; height: 18px;
+      border: 2px solid rgba(0,0,0,0.3);
+      border-top-color: #0b0f1a;
+      border-radius: 50%;
+      animation: spin 0.7s linear infinite;
+      margin: 0 auto;
+    }
+
+    @keyframes spin { to { transform: rotate(360deg); } }
+
+    /* ── Error ───────────────────────────────────────────── */
+    .error-box {
+      background: rgba(239,68,68,0.1);
+      border: 1px solid rgba(239,68,68,0.3);
+      border-radius: 10px;
+      color: #fca5a5;
+      padding: 14px 18px;
+      margin-top: 16px;
+      font-size: 0.9rem;
+      display: none;
+    }
+
+    /* ── NLP insight strip ───────────────────────────────── */
+    .nlp-strip {
+      background: rgba(56,189,248,0.05);
+      border: 1px solid rgba(56,189,248,0.15);
+      border-radius: 10px;
+      padding: 12px 16px;
+      margin-bottom: 24px;
+      font-size: 0.82rem;
+      color: var(--muted);
+      display: none;
+    }
+
+    .nlp-strip strong { color: var(--accent); }
+
+    /* ── Results ─────────────────────────────────────────── */
+    #results { display: none; }
+
+    .results-heading {
+      font-family: 'DM Serif Display', serif;
+      font-size: 1.5rem;
+      color: #fff;
+      margin-bottom: 18px;
+    }
+
+    .result-card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 28px;
+      margin-bottom: 18px;
+      box-shadow: var(--shadow);
+      animation: slideUp 0.5s ease both;
+      position: relative;
+      overflow: hidden;
+      cursor: pointer;
+      transition: border-color 0.2s, transform 0.2s;
+    }
+
+    .result-card::before {
+      content: '';
+      position: absolute;
+      left: 0; top: 0; bottom: 0;
+      width: 4px;
+      background: var(--card-color, var(--accent));
+      border-radius: 4px 0 0 4px;
+    }
+
+    .result-card:hover { border-color: rgba(56,189,248,0.25); transform: translateY(-2px); }
+    .result-card:nth-child(2) { animation-delay: 0.1s; }
+    .result-card:nth-child(3) { animation-delay: 0.2s; }
+
+    .card-header {
+      display: flex;
+      align-items: flex-start;
+      justify-content: space-between;
+      gap: 16px;
+      margin-bottom: 14px;
+    }
+
+    .disease-name {
+      font-family: 'DM Serif Display', serif;
+      font-size: 1.35rem;
+      color: #fff;
+    }
+
+    .badge-row {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      flex-shrink: 0;
+    }
+
+    .confidence-badge {
+      background: rgba(56,189,248,0.12);
+      border: 1px solid rgba(56,189,248,0.25);
+      border-radius: 100px;
+      padding: 4px 12px;
+      font-size: 0.8rem;
+      font-weight: 700;
+      color: var(--accent);
+    }
+
+    .severity-badge {
+      border-radius: 100px;
+      padding: 4px 12px;
+      font-size: 0.78rem;
+      font-weight: 700;
+      color: #fff;
+    }
+
+    .confidence-bar-wrap {
+      background: var(--surface2);
+      border-radius: 100px;
+      height: 5px;
+      margin-bottom: 16px;
+      overflow: hidden;
+    }
+
+    .confidence-bar {
+      height: 100%;
+      border-radius: 100px;
+      background: linear-gradient(90deg, var(--accent), var(--accent2));
+      transition: width 1s cubic-bezier(.22,1,.36,1);
+    }
+
+    .desc-text {
+      color: var(--muted);
+      font-size: 0.88rem;
+      line-height: 1.65;
+      margin-bottom: 18px;
+    }
+
+    /* ── Collapsible precautions ─────────────────────────── */
+    .prec-toggle {
+      background: none;
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      color: var(--muted);
+      font-family: 'DM Sans', sans-serif;
+      font-size: 0.82rem;
+      font-weight: 500;
+      padding: 8px 14px;
+      cursor: pointer;
+      transition: all 0.18s;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+
+    .prec-toggle:hover { border-color: var(--accent); color: var(--accent); }
+
+    .prec-toggle .arrow {
+      transition: transform 0.25s;
+      font-size: 0.7rem;
+    }
+
+    .prec-toggle.open .arrow { transform: rotate(180deg); }
+
+    .precautions-list {
+      display: none;
+      margin-top: 14px;
+      padding: 16px;
+      background: var(--surface2);
+      border-radius: 10px;
+      list-style: none;
+    }
+
+    .precautions-list.visible { display: block; animation: fadeIn 0.25s ease; }
+
+    @keyframes fadeIn { from { opacity:0; transform:translateY(-6px); } to { opacity:1; transform:none; } }
+
+    .precautions-list li {
+      display: flex;
+      align-items: flex-start;
+      gap: 10px;
+      padding: 6px 0;
+      font-size: 0.87rem;
+      color: var(--muted);
+      border-bottom: 1px solid var(--border);
+    }
+
+    .precautions-list li:last-child { border-bottom: none; }
+
+    .prec-icon {
+      width: 18px; height: 18px;
+      background: rgba(56,189,248,0.12);
+      border-radius: 50%;
+      display: flex; align-items: center; justify-content: center;
+      font-size: 0.65rem;
+      color: var(--accent);
+      flex-shrink: 0;
+      margin-top: 1px;
+    }
+
+    /* ── Disclaimer ──────────────────────────────────────── */
+    .disclaimer {
+      background: rgba(245,158,11,0.07);
+      border: 1px solid rgba(245,158,11,0.2);
+      border-radius: 10px;
+      padding: 16px 20px;
+      margin-top: 32px;
+      font-size: 0.82rem;
+      color: #fbbf24;
+      line-height: 1.6;
+    }
+
+    /* ── Footer ──────────────────────────────────────────── */
+    footer {
+      text-align: center;
+      color: var(--muted);
+      font-size: 0.75rem;
+      padding-top: 48px;
+    }
+
+    footer span { color: var(--accent); }
+
+    /* ── Responsive ──────────────────────────────────────── */
+    @media (max-width: 600px) {
+      .card-header { flex-direction: column; align-items: flex-start; }
+      .input-card, .result-card { padding: 20px; }
+    }
+  </style>
+</head>
+<body>
+
+<div class="orb orb-1"></div>
+<div class="orb orb-2"></div>
+
+<div class="wrapper">
+
+  <!-- Header -->
+  <header>
+    <div class="logo-badge">
+      <span class="dot"></span>
+      AI-Powered · NLP Engine
+    </div>
+    <h1>Medi<span>Scan</span></h1>
+    <p class="subtitle">
+      Describe your symptoms in plain language. Our NLP model analyzes and matches them to possible conditions.
+    </p>
+  </header>
+
+  <!-- Input Card -->
+  <div class="input-card">
+    <div class="input-label">Describe your symptoms</div>
+    <div class="symptom-input-wrap">
+      <textarea
+        id="symptomInput"
+        placeholder="e.g. I have a high fever, headache and feel very tired for the past 2 days..."
+        spellcheck="false"
+      ></textarea>
+    </div>
+
+    <!-- Quick symptom tags -->
+    <div class="tag-row">
+      <div class="tag-label">Quick add →</div>
+      <span class="tag" onclick="addTag('fever')">🌡 Fever</span>
+      <span class="tag" onclick="addTag('headache')">🤕 Headache</span>
+      <span class="tag" onclick="addTag('cough')">😮‍💨 Cough</span>
+      <span class="tag" onclick="addTag('fatigue')">😴 Fatigue</span>
+      <span class="tag" onclick="addTag('vomiting')">🤢 Vomiting</span>
+      <span class="tag" onclick="addTag('chest pain')">💔 Chest Pain</span>
+      <span class="tag" onclick="addTag('itching')">🤚 Itching</span>
+      <span class="tag" onclick="addTag('skin rash')">🩹 Skin Rash</span>
+      <span class="tag" onclick="addTag('diarrhoea')">🚽 Diarrhoea</span>
+      <span class="tag" onclick="addTag('joint pain')">🦴 Joint Pain</span>
+    </div>
+
+    <button class="btn-analyze" id="analyzeBtn" onclick="analyze()">
+      <span id="btnText">🔍 Analyze Symptoms</span>
+      <div class="spinner" id="spinner"></div>
+    </button>
+
+    <div class="error-box" id="errorBox"></div>
+  </div>
+
+  <!-- NLP Strip -->
+  <div class="nlp-strip" id="nlpStrip"></div>
+
+  <!-- Results -->
+  <div id="results">
+    <div class="results-heading">Possible Conditions</div>
+    <div id="resultCards"></div>
+
+    <div class="disclaimer">
+      ⚠️ <strong>Medical Disclaimer:</strong> This tool is for informational purposes only and is not a substitute for professional medical advice, diagnosis, or treatment. Always consult a qualified healthcare provider.
+    </div>
+  </div>
+
+</div>
+
+<!-- Footer -->
+<footer>
+  Built with <span>NLP + Random Forest</span> · For educational use only
+</footer>
+
+<script>
+  // ── Quick tag insertion ─────────────────────────────────
+  function addTag(sym) {
+    const ta = document.getElementById('symptomInput');
+    const cur = ta.value.trim();
+    ta.value = cur ? cur + ', ' + sym : sym;
+    ta.focus();
+  }
+
+  // ── Severity color map ──────────────────────────────────
+  const SEV_COLORS = {
+    Mild:     '#22c55e',
+    Moderate: '#f59e0b',
+    High:     '#ef4444',
+    Critical: '#dc2626',
+  };
+
+  // ── Main analyze function ───────────────────────────────
+  async function analyze() {
+    const input  = document.getElementById('symptomInput').value.trim();
+    const btn    = document.getElementById('analyzeBtn');
+    const btnTxt = document.getElementById('btnText');
+    const spinner= document.getElementById('spinner');
+    const errBox = document.getElementById('errorBox');
+    const results= document.getElementById('results');
+    const nlpStr = document.getElementById('nlpStrip');
+
+    if (!input) {
+      showError('Please describe your symptoms first.');
+      return;
+    }
+
+    // Loading state
+    btn.disabled   = true;
+    btnTxt.style.display  = 'none';
+    spinner.style.display = 'block';
+    errBox.style.display  = 'none';
+    results.style.display = 'none';
+    nlpStr.style.display  = 'none';
+
+    try {
+      const res  = await fetch('/predict', {
+        method:  'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body:    JSON.stringify({ symptoms: input }),
+      });
+      const data = await res.json();
+
+      if (!res.ok || data.error) {
+        showError(data.error || 'Something went wrong.');
+        return;
+      }
+
+      // Show NLP insight
+      nlpStr.innerHTML = `
+        <strong>NLP processed:</strong> "${data.symptoms_processed}"
+        &nbsp;·&nbsp; Found <strong>${data.results.length}</strong> possible condition(s)
+      `;
+      nlpStr.style.display = 'block';
+
+      // Render result cards
+      renderResults(data.results);
+
+    } catch (err) {
+      showError('Network error. Is the Flask server running?');
+    } finally {
+      btn.disabled          = false;
+      btnTxt.style.display  = 'inline';
+      spinner.style.display = 'none';
+    }
+  }
+
+  // ── Render result cards ─────────────────────────────────
+  function renderResults(results) {
+    const container = document.getElementById('resultCards');
+    container.innerHTML = '';
+
+    results.forEach((r, i) => {
+      const sevColor = SEV_COLORS[r.severity] || '#38bdf8';
+      const precs    = r.precautions.length
+        ? r.precautions.map(p => `
+            <li>
+              <span class="prec-icon">✓</span>
+              <span>${capitalise(p)}</span>
+            </li>`).join('')
+        : '<li><span class="prec-icon">–</span><span>No specific precautions listed.</span></li>';
+
+      const card = document.createElement('div');
+      card.className = 'result-card';
+      card.style.setProperty('--card-color', sevColor);
+      card.style.animationDelay = `${i * 0.1}s`;
+
+      card.innerHTML = `
+        <div class="card-header">
+          <div class="disease-name">${r.disease}</div>
+          <div class="badge-row">
+            <div class="confidence-badge">${r.confidence}%</div>
+            <div class="severity-badge" style="background:${sevColor}22; border:1px solid ${sevColor}55; color:${sevColor}">
+              ${r.severity}
+            </div>
+          </div>
+        </div>
+
+        <div class="confidence-bar-wrap">
+          <div class="confidence-bar" style="width:0%" data-width="${r.confidence}%"></div>
+        </div>
+
+        <p class="desc-text">${r.description}</p>
+
+        <button class="prec-toggle" onclick="togglePrec(this)">
+          📋 Precautions &amp; Advice <span class="arrow">▾</span>
+        </button>
+        <ul class="precautions-list">
+          ${precs}
+        </ul>
+      `;
+
+      container.appendChild(card);
+    });
+
+    // Animate confidence bars after DOM paint
+    requestAnimationFrame(() => {
+      document.querySelectorAll('.confidence-bar').forEach(bar => {
+        setTimeout(() => { bar.style.width = bar.dataset.width; }, 100);
+      });
+    });
+
+    document.getElementById('results').style.display = 'block';
+    document.getElementById('results').scrollIntoView({ behavior: 'smooth', block: 'start' });
+  }
+
+  // ── Toggle precautions ──────────────────────────────────
+  function togglePrec(btn) {
+    const list = btn.nextElementSibling;
+    const open = list.classList.toggle('visible');
+    btn.classList.toggle('open', open);
+  }
+
+  // ── Error display ───────────────────────────────────────
+  function showError(msg) {
+    const box = document.getElementById('errorBox');
+    box.textContent = '⚠ ' + msg;
+    box.style.display = 'block';
+  }
+
+  // ── Helpers ─────────────────────────────────────────────
+  function capitalise(str) {
+    return str.charAt(0).toUpperCase() + str.slice(1);
+  }
+
+  // ── Enter key shortcut ──────────────────────────────────
+  document.getElementById('symptomInput').addEventListener('keydown', e => {
+    if (e.key === 'Enter' && e.ctrlKey) analyze();
+  });
+</script>
+
+</body>
+</html>
